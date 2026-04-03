@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>claude-spend</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background: #0b1120;
+      color: #e5e7eb;
+    }
+    .card {
+      background: rgba(17, 24, 39, 0.95);
+      border: 1px solid rgba(75, 85, 99, 0.25);
+      border-radius: 1rem;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.28);
+    }
+    .tab-btn.active {
+      background: #2563eb;
+      color: white;
+    }
+    .table-wrap {
+      overflow-x: auto;
+    }
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.08);
+      border-top: 3px solid #60a5fa;
+      border-radius: 9999px;
+      width: 24px;
+      height: 24px;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .hidden-section {
+      display: none;
+    }
+    canvas {
+      max-height: 360px;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 py-6">
+    <header class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+      <div>
+        <h1 class="text-3xl font-bold tracking-tight">🔍 claude-spend</h1>
+        <p class="text-sm text-slate-400 mt-1">See exactly where your Anthropic API credits go.</p>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-3">
+        <select id="presetRange" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm">
+          <option value="last7">Last 7 days</option>
+          <option value="last30">Last 30 days</option>
+          <option value="thisMonth" selected>This month</option>
+          <option value="lastMonth">Last month</option>
+          <option value="custom">Custom range</option>
+        </select>
+
+        <input id="startDate" type="date" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+        <input id="endDate" type="date" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+
+        <button id="applyRangeBtn" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm font-medium">Apply</button>
+        <button id="refreshBtn" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium">↻ Refresh</button>
+      </div>
+    </header>
+
+    <div id="errorBanner" class="hidden mb-4 p-4 rounded-xl bg-red-900/50 border border-red-700 text-red-100 text-sm"></div>
+    <div id="successBanner" class="hidden mb-4 p-4 rounded-xl bg-emerald-900/40 border border-emerald-700 text-emerald-100 text-sm"></div>
+
+    <div id="loadingState" class="hidden items-center gap-3 mb-6">
+      <div class="spinner"></div>
+      <span class="text-slate-300 text-sm">Loading dashboard data...</span>
+    </div>
+
+    <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div class="card p-5">
+        <div class="text-slate-400 text-sm">Total Spend</div>
+        <div id="totalSpend" class="text-3xl font-bold mt-2">$0.00</div>
+        <div class="text-slate-500 text-xs mt-2">Selected range</div>
+      </div>
+      <div class="card p-5">
+        <div class="text-slate-400 text-sm">Total Tokens</div>
+        <div id="totalTokens" class="text-3xl font-bold mt-2">0</div>
+        <div class="text-slate-500 text-xs mt-2">Input + output + cache</div>
+      </div>
+      <div class="card p-5">
+        <div class="text-slate-400 text-sm">Daily Burn Rate</div>
+        <div id="burnRate" class="text-3xl font-bold mt-2">$0.00</div>
+        <div class="text-slate-500 text-xs mt-2">Average cost per day</div>
+      </div>
+      <div class="card p-5">
+        <div class="text-slate-400 text-sm">Projected Month Total</div>
+        <div id="projection" class="text-3xl font-bold mt-2">$0.00</div>
+        <div class="text-slate-500 text-xs mt-2">Based on current burn</div>
+      </div>
+    </section>
+
+    <section class="card p-5 mb-6">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div>
+          <div class="text-lg font-semibold">Cache Efficiency</div>
+          <div class="text-sm text-slate-400">Fresh input vs cache reads vs cache writes</div>
+        </div>
+        <div id="cacheCallout" class="text-emerald-400 text-sm font-medium">💰 Saved $0.00 with caching</div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        <div class="bg-slate-900/80 rounded-xl p-4 border border-slate-800">
+          <div class="text-slate-400 text-sm">Cache Efficiency</div>
+          <div id="cacheEfficiency" class="text-2xl font-bold mt-2">0%</div>
+        </div>
+        <div class="bg-slate-900/80 rounded-xl p-4 border border-slate-800">
+          <div class="text-slate-400 text-sm">Cache Read Tokens</div>
+          <div id="cacheReadTokens" class="text-2xl font-bold mt-2">0</div>
+        </div>
+        <div class="bg-slate-900/80 rounded-xl p-4 border border-slate-800">
+          <div class="text-slate-400 text-sm">Cache Write Tokens</div>
+          <div id="cacheWriteTokens" class="text-2xl font-bold mt-2">0</div>
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <canvas id="cacheChart"></canvas>
+      </div>
+
+      <div id="cacheRecommendation" class="mt-4 text-sm text-slate-300"></div>
+    </section>
+
+    <section class="mb-6">
+      <div class="flex flex-wrap gap-2">
+        <button class="tab-btn active px-4 py-2 rounded-lg bg-slate-800 text-sm" data-tab="overviewTab">Overview</button>
+        <button class="tab-btn px-4 py-2 rounded-lg bg-slate-800 text-sm" data-tab="modelsTab">By Model</button>
+        <button class="tab-btn px-4 py-2 rounded-lg bg-slate-800 text-sm" data-tab="trendTab">Daily Trend</button>
+        <button class="tab-btn px-4 py-2 rounded-lg bg-slate-800 text-sm" data-tab="workspaceTab">Workspaces</button>
+        <button class="tab-btn px-4 py-2 rounded-lg bg-slate-800 text-sm" data-tab="claudeCodeTab">Claude Code</button>
+        <button class="tab-btn px-4 py-2 rounded-lg bg-slate-800 text-sm" data-tab="settingsTab">Settings</button>
+        <button class="tab-btn px-4 py-2 rounded-lg bg-slate-800 text-sm" data-tab="exportTab">Export</button>
+      </div>
+    </section>
+
+    <section id="overviewTab" class="tab-section">
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div class="card p-5">
+          <h2 class="text-xl font-semibold">Daily Spend Trend</h2>
+          <p class="text-sm text-slate-400 mb-4">Spend over time, grouped by model</p>
+          <canvas id="trendChart"></canvas>
+        </div>
+
+        <div class="card p-5">
+          <h2 class="text-xl font-semibold">Spend by Model</h2>
+          <p class="text-sm text-slate-400 mb-4">Highest cost models first</p>
+          <canvas id="modelChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card p-5 mt-6">
+        <h2 class="text-xl font-semibold mb-4">Model Breakdown</h2>
+        <div class="table-wrap">
+          <table class="min-w-full text-sm">
+            <thead class="text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="text-left py-3 pr-4">Model</th>
+                <th class="text-right py-3 px-4">Input</th>
+                <th class="text-right py-3 px-4">Output</th>
+                <th class="text-right py-3 px-4">Cache Read</th>
+                <th class="text-right py-3 px-4">Cache Write</th>
+                <th class="text-right py-3 pl-4">Cost</th>
+              </tr>
+            </thead>
+            <tbody id="modelTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="modelsTab" class="tab-section hidden-section">
+      <div class="card p-5">
+        <h2 class="text-xl font-semibold mb-4">Spend by Model</h2>
+        <canvas id="modelChartFull"></canvas>
+        <div class="table-wrap mt-6">
+          <table class="min-w-full text-sm">
+            <thead class="text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="text-left py-3 pr-4">Model</th>
+                <th class="text-right py-3 px-4">Input</th>
+                <th class="text-right py-3 px-4">Output</th>
+                <th class="text-right py-3 px-4">Cache Read</th>
+                <th class="text-right py-3 px-4">Cache Write</th>
+                <th class="text-right py-3 pl-4">Cost</th>
+              </tr>
+            </thead>
+            <tbody id="modelTableBodyFull"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="trendTab" class="tab-section hidden-section">
+      <div class="card p-5">
+        <h2 class="text-xl font-semibold mb-4">Daily Spend Trend</h2>
+        <canvas id="trendChartFull"></canvas>
+      </div>
+    </section>
+
+    <section id="workspaceTab" class="tab-section hidden-section">
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div class="card p-5">
+          <h2 class="text-xl font-semibold mb-4">Workspace Breakdown</h2>
+          <canvas id="workspaceChart"></canvas>
+        </div>
+
+        <div class="card p-5">
+          <h2 class="text-xl font-semibold mb-4">Workspace Table</h2>
+          <div class="table-wrap">
+            <table class="min-w-full text-sm">
+              <thead class="text-slate-400 border-b border-slate-800">
+                <tr>
+                  <th class="text-left py-3 pr-4">Workspace</th>
+                  <th class="text-right py-3 pl-4">Cost</th>
+                </tr>
+              </thead>
+              <tbody id="workspaceTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="claudeCodeTab" class="tab-section hidden-section">
+      <div class="card p-5">
+        <h2 class="text-xl font-semibold mb-4">Claude Code Developer Breakdown</h2>
+        <div id="claudeCodeEmpty" class="hidden text-sm text-slate-400 mb-4">
+          No Claude Code analytics available for this date range.
+        </div>
+        <div class="table-wrap">
+          <table class="min-w-full text-sm">
+            <thead class="text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="text-left py-3 pr-4">Email</th>
+                <th class="text-right py-3 px-4">Sessions</th>
+                <th class="text-right py-3 px-4">Lines Added</th>
+                <th class="text-right py-3 px-4">Lines Removed</th>
+                <th class="text-right py-3 px-4">Commits</th>
+                <th class="text-right py-3 px-4">PRs</th>
+                <th class="text-right py-3 px-4">Acceptance Rate</th>
+                <th class="text-right py-3 pl-4">Cost</th>
+              </tr>
+            </thead>
+            <tbody id="claudeCodeTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="settingsTab" class="tab-section hidden-section">
+      <div class="card p-5 max-w-2xl">
+        <h2 class="text-xl font-semibold mb-2">Settings</h2>
+        <p class="text-sm text-slate-400 mb-6">Your Admin API key is stored locally in a .env file only.</p>
+
+        <div class="mb-4">
+          <label class="block text-sm text-slate-300 mb-2">Current API Key</label>
+          <div id="currentApiKey" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300">
+            Not configured
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label for="apiKeyInput" class="block text-sm text-slate-300 mb-2">Admin API Key</label>
+          <input id="apiKeyInput" type="password" placeholder="sk-ant-admin-..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+          <button id="saveSettingsBtn" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm font-medium">Save API Key</button>
+          <button id="manualRefreshBtn" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium">Refresh Data Now</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="exportTab" class="tab-section hidden-section">
+      <div class="card p-5 max-w-2xl">
+        <h2 class="text-xl font-semibold mb-4">Export</h2>
+        <p class="text-sm text-slate-400 mb-6">Download your current date range report as CSV or JSON.</p>
+        <div class="flex flex-wrap gap-3">
+          <button id="downloadCsvBtn" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm font-medium">Download CSV</button>
+          <button id="downloadJsonBtn" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium">Download JSON</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="emptyState" class="hidden card p-8 text-center mt-6">
+      <div class="text-4xl mb-3">📭</div>
+      <h3 class="text-xl font-semibold mb-2">No usage data found</h3>
+      <p class="text-sm text-slate-400">Make sure you've made Anthropic API calls recently and selected a valid date range.</p>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      start: null,
+      end: null,
+      summary: null,
+      spendByModel: [],
+      dailyTrend: [],
+      workspaces: [],
+      claudeCode: [],
+      charts: {}
+    };
+
+    function formatNumber(num) {
+      return new Intl.NumberFormat().format(Number(num || 0));
+    }
+
+    function formatCurrency(num) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD"
+      }).format(Number(num || 0));
+    }
+
+    function formatPercent(num) {
+      return `${Number(num || 0).toFixed(2)}%`;
+    }
+
+    function showLoading(show) {
+      const el = document.getElementById("loadingState");
+      el.classList.toggle("hidden", !show);
+      if (show) el.classList.add("flex");
+      else el.classList.remove("flex");
+    }
+
+    function showError(message) {
+      const el = document.getElementById("errorBanner");
+      el.textContent = message;
+      el.classList.remove("hidden");
+    }
+
+    function hideError() {
+      document.getElementById("errorBanner").classList.add("hidden");
+    }
+
+    function showSuccess(message) {
+      const el = document.getElementById("successBanner");
+      el.textContent = message;
+      el.classList.remove("hidden");
+      setTimeout(() => el.classList.add("hidden"), 3500);
+    }
+
+    function setDefaultDatesFromPreset() {
+      const preset = document.getElementById("presetRange").value;
+      const today = new Date();
+      const fmt = (d) => d.toISOString().slice(0, 10);
+
+      let start;
+      let end;
+
+      if (preset === "last7") {
+        end = new Date(today);
+        start = new Date(today);
+        start.setDate(start.getDate() - 6);
+      } else if (preset === "last30") {
+        end = new Date(today);
+        start = new Date(today);
+        start.setDate(start.getDate() - 29);
+      } else if (preset === "thisMonth") {
+        end = new Date(today);
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+      } else if (preset === "lastMonth") {
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        end = new Date(today.getFullYear(), today.getMonth(), 0);
+      } else {
+        return;
+      }
+
+      document.getElementById("startDate").value = fmt(start);
+      document.getElementById("endDate").value = fmt(end);
+    }
+
+    function getQueryString() {
+      const start = document.getElementById("startDate").value;
+      const end = document.getElementById("endDate").value;
+      state.start = start;
+      state.end = end;
+      return `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+    }
+
+    async function fetchJson(url, options = {}) {
+      const res = await fetch(url, options);
+      const contentType = res.headers.get("content-type") || "";
+      const body = contentType.includes("application/json") ? await res.json() : await res.text();
+
+      if (!res.ok) {
+        const message = typeof body === "object" ? (body.detail || JSON.stringify(body)) : body;
+        throw new Error(message || "Request failed");
+      }
+
+      return body;
+    }
+
+    function destroyChart(key) {
+      if (state.charts[key]) {
+        state.charts[key].destroy();
+        delete state.charts[key];
+      }
+    }
+
+    function renderSummary() {
+      const s = state.summary;
+      document.getElementById("totalSpend").textContent = formatCurrency(s.total_cost_usd);
+      document.getElementById("totalTokens").textContent = formatNumber(s.total_tokens);
+      document.getElementById("burnRate").textContent = formatCurrency(s.burn_rate_daily_usd);
+      document.getElementById("projection").textContent = formatCurrency(s.projected_month_total_usd);
+      document.getElementById("cacheEfficiency").textContent = formatPercent(s.cache_efficiency_percent);
+      document.getElementById("cacheReadTokens").textContent = formatNumber(s.cache_read_tokens);
+      document.getElementById("cacheWriteTokens").textContent = formatNumber(s.cache_write_tokens);
+      document.getElementById("cacheCallout").textContent = `💰 Saved ${formatCurrency(s.cache_savings_usd)} with caching`;
+
+      let recommendation = "Prompt caching looks healthy.";
+      if (s.cache_efficiency_percent < 10) {
+        recommendation = "Cache usage is low. Consider reusing stable prompt prefixes or long system prompts to improve savings.";
+      } else if (s.cache_efficiency_percent < 25) {
+        recommendation = "You are using caching, but there may be room to improve prompt reuse for better ROI.";
+      }
+
+      document.getElementById("cacheRecommendation").textContent = recommendation;
+      renderCacheChart(s);
+    }
+
+    function renderCacheChart(summary) {
+      destroyChart("cacheChart");
+      const ctx = document.getElementById("cacheChart");
+      const freshInput = Math.max(0, (summary.input_tokens || 0) - (summary.cache_read_tokens || 0));
+
+      state.charts.cacheChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: ["Token Mix"],
+          datasets: [
+            { label: "Fresh Input", data: [freshInput] },
+            { label: "Cache Read", data: [summary.cache_read_tokens || 0] },
+            { label: "Cache Write", data: [summary.cache_write_tokens || 0] }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: "#cbd5e1" } }
+          },
+          scales: {
+            x: {
+              ticks: { color: "#cbd5e1" },
+              grid: { color: "rgba(148,163,184,0.1)" }
+            },
+            y: {
+              ticks: { color: "#cbd5e1" },
+              grid: { color: "rgba(148,163,184,0.1)" }
+            }
+          }
+        }
+      });
+    }
+
+    function renderModelTable(tableId, items) {
+      const tbody = document.getElementById(tableId);
+      tbody.innerHTML = "";
+
+      items.forEach(item => {
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-800";
+        tr.innerHTML = `
+          <td class="py-3 pr-4">${item.model}</td>
+          <td class="py-3 px-4 text-right">${formatNumber(item.input_tokens)}</td>
+          <td class="py-3 px-4 text-right">${formatNumber(item.output_tokens)}</td>
+          <td class="py-3 px-4 text-right">${formatNumber(item.cache_read_tokens)}</td>
+          <td class="py-3 px-4 text-right">${formatNumber(item.cache_write_tokens)}</td>
+          <td class="py-3 pl-4 text-right font-medium">${formatCurrency(item.total_cost_usd)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderModelCharts() {
+      const labels = state.spendByModel.map(x => x.model);
+      const costs = state.spendByModel.map(x => x.total_cost_usd);
+
+      destroyChart("modelChart");
+      destroyChart("modelChartFull");
+
+      const config = {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{ label: "Cost (USD)", data: costs }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: "#cbd5e1" } }
+          },
+          scales: {
+            x: {
+              ticks: { color: "#cbd5e1" },
+              grid: { color: "rgba(148,163,184,0.1)" }
+            },
+            y: {
+              ticks: {
+                color: "#cbd5e1",
+                callback: value => `$${value}`
+              },
+              grid: { color: "rgba(148,163,184,0.1)" }
+            }
+          }
+        }
+      };
+
+      state.charts.modelChart = new Chart(document.getElementById("modelChart"), config);
+      state.charts.modelChartFull = new Chart(document.getElementById("modelChartFull"), config);
+      renderModelTable("modelTableBody", state.spendByModel);
+      renderModelTable("modelTableBodyFull", state.spendByModel);
+    }
+
+    function buildTrendDatasets(items) {
+      const dates = [...new Set(items.map(x => x.date))].sort();
+      const models = [...new Set(items.map(x => x.model))];
+
+      const datasets = models.map(model => ({
+        label: model,
+        data: dates.map(date => {
+          const row = items.find(x => x.date === date && x.model === model);
+          return row ? row.total_cost_usd : 0;
+        })
+      }));
+
+      return { dates, datasets };
+    }
+
+    function renderTrendCharts() {
+      const { dates, datasets } = buildTrendDatasets(state.dailyTrend);
+
+      destroyChart("trendChart");
+      destroyChart("trendChartFull");
+
+      const options = {
+        responsive: true,
+        interaction: {
+          mode: "index",
+          intersect: false
+        },
+        plugins: {
+          legend: { labels: { color: "#cbd5e1" } },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return `${context.dataset.label}: ${formatCurrency(context.raw)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            stacked: true,
+            ticks: { color: "#cbd5e1" },
+            grid: { color: "rgba(148,163,184,0.1)" }
+          },
+          y: {
+            stacked: true,
+            ticks: {
+              color: "#cbd5e1",
+              callback: value => `$${value}`
+            },
+            grid: { color: "rgba(148,163,184,0.1)" }
+          }
+        }
+      };
+
+      state.charts.trendChart = new Chart(document.getElementById("trendChart"), {
+        type: "line",
+        data: { labels: dates, datasets },
+        options
+      });
+
+      state.charts.trendChartFull = new Chart(document.getElementById("trendChartFull"), {
+        type: "line",
+        data: { labels: dates, datasets },
+        options
+      });
+    }
+
+    function renderWorkspaces() {
+      const items = state.workspaces;
+      const tbody = document.getElementById("workspaceTableBody");
+      tbody.innerHTML = "";
+
+      items.forEach(item => {
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-800";
+        tr.innerHTML = `
+          <td class="py-3 pr-4">${item.workspace_id}</td>
+          <td class="py-3 pl-4 text-right font-medium">${formatCurrency(item.total_cost_usd)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      destroyChart("workspaceChart");
+      state.charts.workspaceChart = new Chart(document.getElementById("workspaceChart"), {
+        type: "pie",
+        data: {
+          labels: items.map(x => x.workspace_id),
+          datasets: [{ data: items.map(x => x.total_cost_usd) }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: "#cbd5e1" } }
+          }
+        }
+      });
+    }
+
+    function renderClaudeCode() {
+      const tbody = document.getElementById("claudeCodeTableBody");
+      const empty = document.getElementById("claudeCodeEmpty");
+      tbody.innerHTML = "";
+
+      if (!state.claudeCode.length) {
+        empty.classList.remove("hidden");
+        return;
+      }
+
+      empty.classList.add("hidden");
+
+      state.claudeCode.forEach(item => {
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-800";
+        tr.innerHTML = `
+          <td class="py-3 pr-4">${item.email}</td>
+          <td class="py-3 px-4 text-right">${formatNumber(item.sessions)}</td>
+          <td class="py-3 px-4 text-right">${formatNumber(item.lines_added)}</td>
+          <td class="py-3 px-4 text-right">${formatNumber(item.lines_removed)}</td>
+          <td class="py-3 px-4 text-right">${formatNumber(item.commits)}</td>
+          <td class="py-3 px-4 text-right">${formatNumber(item.pull_requests)}</td>
+          <td class="py-3 px-4 text-right">${formatPercent(item.acceptance_rate_percent)}</td>
+          <td class="py-3 pl-4 text-right font-medium">${formatCurrency(item.total_cost_usd)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function loadSettings() {
+      const settings = await fetchJson("/api/settings");
+      document.getElementById("currentApiKey").textContent = settings.masked_api_key || "Not configured";
+    }
+
+    function setEmptyState(show) {
+      document.getElementById("emptyState").classList.toggle("hidden", !show);
+    }
+
+    async function loadDashboard() {
+      hideError();
+      showLoading(true);
+      setEmptyState(false);
+
+      try {
+        const qs = getQueryString();
+
+        const [summary, spendByModel, dailyTrend, workspaces, claudeCode] = await Promise.all([
+          fetchJson(`/api/summary?${qs}`),
+          fetchJson(`/api/spend-by-model?${qs}`),
+          fetchJson(`/api/daily-trend?${qs}`),
+          fetchJson(`/api/workspaces?${qs}`),
+          fetchJson(`/api/claude-code?${qs}`).catch(() => ({ items: [] }))
+        ]);
+
+        state.summary = summary;
+        state.spendByModel = spendByModel.items || [];
+        state.dailyTrend = dailyTrend.items || [];
+        state.workspaces = workspaces.items || [];
+        state.claudeCode = claudeCode.items || [];
+
+        const hasAnyData =
+          (summary.total_tokens || 0) > 0 ||
+          state.spendByModel.length > 0 ||
+          state.dailyTrend.length > 0 ||
+          state.workspaces.length > 0;
+
+        if (!hasAnyData) {
+          setEmptyState(true);
+        }
+
+        renderSummary();
+        renderModelCharts();
+        renderTrendCharts();
+        renderWorkspaces();
+        renderClaudeCode();
+        await loadSettings();
+      } catch (err) {
+        showError(err.message || "Failed to load dashboard");
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    function setupTabs() {
+      const buttons = document.querySelectorAll(".tab-btn");
+      const sections = document.querySelectorAll(".tab-section");
+
+      buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+          buttons.forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+
+          const tabId = btn.dataset.tab;
+          sections.forEach(section => {
+            section.classList.toggle("hidden-section", section.id !== tabId);
+          });
+        });
+      });
+    }
+
+    function setupEvents() {
+      document.getElementById("presetRange").addEventListener("change", setDefaultDatesFromPreset);
+      document.getElementById("applyRangeBtn").addEventListener("click", loadDashboard);
+
+      document.getElementById("refreshBtn").addEventListener("click", async () => {
+        try {
+          await fetchJson("/api/refresh", { method: "POST" });
+          showSuccess("Cache cleared. Refreshing data...");
+          await loadDashboard();
+        } catch (err) {
+          showError(err.message || "Failed to refresh");
+        }
+      });
+
+      document.getElementById("manualRefreshBtn").addEventListener("click", async () => {
+        try {
+          await fetchJson("/api/refresh", { method: "POST" });
+          showSuccess("Data refresh triggered.");
+          await loadDashboard();
+        } catch (err) {
+          showError(err.message || "Failed to refresh data");
+        }
+      });
+
+      document.getElementById("saveSettingsBtn").addEventListener("click", async () => {
+        const apiKey = document.getElementById("apiKeyInput").value.trim();
+
+        if (!apiKey) {
+          showError("Please enter an Admin API key.");
+          return;
+        }
+
+        try {
+          await fetchJson("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ api_key: apiKey })
+          });
+
+          document.getElementById("apiKeyInput").value = "";
+          showSuccess("API key saved successfully.");
+          await loadSettings();
+          await loadDashboard();
+        } catch (err) {
+          showError(err.message || "Failed to save API key");
+        }
+      });
+
+      document.getElementById("downloadCsvBtn").addEventListener("click", () => {
+        window.location.href = `/api/export/csv?${getQueryString()}`;
+      });
+
+      document.getElementById("downloadJsonBtn").addEventListener("click", () => {
+        window.location.href = `/api/export/json?${getQueryString()}`;
+      });
+    }
+
+    async function init() {
+      setupTabs();
+      setupEvents();
+      setDefaultDatesFromPreset();
+      await loadDashboard();
+    }
+
+    init();
+  </script>
+</body>
+</html>
