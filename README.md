@@ -2,7 +2,7 @@
 
 > See exactly where your Anthropic API credits go.
 
-**ClaudeSpend** is a free, open-source, self-hosted dashboard that connects to Anthropic's Admin APIs and gives you full visibility into your Claude API spend — broken down by model, date, workspace, and developer.
+**ClaudeSpend** is a free, open-source, self-hosted dashboard that connects to Anthropic's Admin APIs and gives you full visibility into your Claude API spend - broken down by model, date, workspace, and developer.
 
 ![ClaudeSpend Dashboard](Screenshot_5.png)
 
@@ -14,7 +14,7 @@
 
 ## Why ClaudeSpend?
 
-The Anthropic Console shows you usage — but not *why* you're spending. ClaudeSpend answers:
+The Anthropic Console shows you usage - but not *why* you're spending. ClaudeSpend answers:
 
 - Which model is burning the most credits?
 - What's my daily burn rate and projected monthly cost?
@@ -25,15 +25,15 @@ The Anthropic Console shows you usage — but not *why* you're spending. ClaudeS
 
 ## Features
 
-- 📊 **Overview Dashboard** — total spend, tokens, burn rate, monthly projection
-- 🤖 **Spend by Model** — see exactly which Claude model costs the most
-- 📈 **Daily Trend** — 30-day spend chart stacked by model
-- 🏢 **Workspace Breakdown** — cost per workspace/team
-- 👩‍💻 **Claude Code Developer Analytics** — per-user sessions, lines of code, commits, PRs, cost
-- 💾 **Cache Efficiency Panel** — how much you're saving with prompt caching
-- 📤 **Export** — download full data as CSV or JSON
-- 🔄 **Auto-refresh** — stays current without manual refresh
-- 🌙 **Dark mode** — easy on the eyes
+- 📊 **Overview Dashboard** - total spend, tokens, burn rate, monthly projection
+- 🤖 **Spend by Model** - see exactly which Claude model costs the most
+- 📈 **Daily Trend** - 30-day spend chart stacked by model
+- 🏢 **Workspace Breakdown** - cost per workspace/team
+- 👩‍💻 **Claude Code Developer Analytics** - per-user sessions, lines of code, commits, PRs, cost
+- 💾 **Cache Efficiency Panel** - how much you're saving with prompt caching
+- 📤 **Export** - download full data as CSV or JSON
+- 🔄 **Auto-refresh** - stays current without manual refresh
+- 🌙 **Dark mode** - easy on the eyes
 
 ---
 
@@ -66,7 +66,7 @@ Dashboard opens automatically at **http://127.0.0.1:7842**
 
 ## Getting Your Admin API Key
 
-ClaudeSpend requires an **Admin API key** — this is different from a standard API key.
+ClaudeSpend requires an **Admin API key** - this is different from a standard API key.
 
 1. Go to [console.anthropic.com](https://console.anthropic.com)
 2. Navigate to **Settings → Admin Keys**
@@ -97,13 +97,13 @@ claude-spend --set-key sk-ant-admin-... # Save API key
 Standard API keys only work for making Claude API calls. The Admin API key gives read access to your organization's usage and cost data.
 
 **Is my API key stored securely?**
-Yes — your key is stored only in your local `.env` file. It never leaves your machine except when making requests directly to Anthropic's API.
+Yes - your key is stored only in your local `.env` file. It never leaves your machine except when making requests directly to Anthropic's API.
 
 **How often does data refresh?**
 Data auto-refreshes every 5 minutes. Anthropic's usage data has up to a 5-minute delay. Claude Code analytics have up to a 1-hour delay.
 
 **Does this work with AWS Bedrock or Google Vertex AI?**
-No — ClaudeSpend uses Anthropic's 1st-party Admin API, which only covers direct Anthropic API usage.
+No - ClaudeSpend uses Anthropic's 1st-party Admin API, which only covers direct Anthropic API usage.
 
 **I'm on an individual account, can I still use this?**
 The Admin API requires an organization account. Set one up at Console → Settings → Organization (it's free).
@@ -132,7 +132,7 @@ Contributions welcome! Please open an issue first to discuss what you'd like to 
 
 ## License
 
-MIT — free to use, modify, and distribute.
+MIT - free to use, modify, and distribute.
 
 ---
 
