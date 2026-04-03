@@ -5,7 +5,7 @@ A local-first dashboard to track and visualize Anthropic API usage, cost, and ef
 
 See exactly where your Anthropic API credits go.
 
-![Dashboard Screenshot](screenshot.png)
+![Dashboard Screenshot](Screenshot_5.png)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
