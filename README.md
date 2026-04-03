@@ -44,5 +44,30 @@ It is self-hosted, lightweight, and runs locally with no build step required for
 
 ### 1) Install
 
+### 2) Set your Admin API key
+claude-spend --set-key sk-ant-admin-...
+
+Or copy .env.example to .env and fill in your key.
+
+### 3) Run
+claude-spend
+
+The dashboard will open locally at:
+
+http://127.0.0.1:7842
+Getting your Admin API key
+
+This tool requires an Anthropic Admin API key, not a standard API key.
+
+Steps:
+
+Log in to Anthropic Console
+Go to Settings
+Go to Admin Keys
+Create a new Admin API key
+Copy the key
+Save it with:
+claude-spend --set-key sk-ant-admin-...
+
 ```bash
 pip install claude-spend
